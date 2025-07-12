@@ -151,7 +151,6 @@ curl -X POST http://localhost:5000/api/auth/register \
   "profilePhoto": "https://placehold.co/128x128/FF5733/FFFFFF?text=AS",
   "isPublic": true
 }'
-
 # Repeat similar commands for other users (Bob, Carol, etc., as provided in previous instructions)
 
 You can find the full list of 10 example user registration curl commands in our chat history.
