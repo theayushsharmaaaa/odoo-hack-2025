@@ -14,10 +14,18 @@ A full-stack platform where users can exchange skills through direct swap reques
 - SQLite/PostgreSQL + Prisma
 - JWT Auth
 
+## Team Members
+- Ayush Sharma (TL)
+- Akshita Shukla
+- Anirudh Chauhan
+- Vijeta
+
 ## 📦 Getting Started
 
 ```bash
 cd server
 npm install
 npm run dev
+
+
 
