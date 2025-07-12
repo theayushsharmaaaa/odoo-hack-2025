@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to SkillSwap{% endblock %}
+
+{% block content %}
+<div class="hero-section" style="text-align: center; padding: 4rem 0; color: white;">
+    <h1 style="font-size: 3rem; margin-bottom: 1rem; animation: fadeIn 1s ease-in;">
+        <i class="fas fa-exchange-alt"></i> Welcome to SkillSwap
+    </h1>
+    <p style="font-size: 1.2rem; margin-bottom: 2rem; opacity: 0.9; animation: fadeIn 1s ease-in 0.5s both;">
+        Connect, Learn, and Grow by Trading Skills with Others
+    </p>
+    <div style="animation: fadeIn 1s ease-in 1s both;">
+        <a href="{{ url_for('register') }}" class="btn" style="margin: 0 0.5rem;">
+            <i class="fas fa-user-plus"></i> Get Started
+        </a>
+        <a href="{{ url_for('login') }}" class="btn btn-secondary" style="margin: 0 0.5rem;">
+            <i class="fas fa-sign-in-alt"></i> Login
+        </a>
+    </div>
+</div>
+
+<div class="features-section" style="margin-top: 4rem;">
+    <div class="grid">
+        <div class="card fade-in">
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <i class="fas fa-handshake" style="font-size: 3rem; color: #667eea;"></i>
+            </div>
+            <h3 style="text-align: center; margin-bottom: 1rem; color: #333;">Skill Exchange</h3>
+            <p style="text-align: center; color: #666;">
+                Trade your skills with others in a mutually beneficial way. Teach what you know, learn what you need.
+            </p>
+        </div>
+        
+        <div class="card fade-in">
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <i class="fas fa-users" style="font-size: 3rem; color: #667eea;"></i>
+            </div>
+            <h3 style="text-align: center; margin-bottom: 1rem; color: #333;">Connect & Network</h3>
+            <p style="text-align: center; color: #666;">
+                Build meaningful connections with like-minded individuals who share your passion for learning.
+            </p>
+        </div>
+        
+        <div class="card fade-in">
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <i class="fas fa-star" style="font-size: 3rem; color: #667eea;"></i>
+            </div>
+            <h3 style="text-align: center; margin-bottom: 1rem; color: #333;">Rate & Review</h3>
+            <p style="text-align: center; color: #666;">
+                Share feedback and build trust within our community through our rating system.
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="how-it-works" style="margin-top: 4rem;">
+    <div class="card">
+        <h2 style="text-align: center; margin-bottom: 2rem; color: #333;">How It Works</h2>
+        <div class="grid">
+            <div style="text-align: center; padding: 1rem;">
+                <div style="background: #667eea; color: white; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; font-size: 1.2rem; font-weight: bold;">1</div>
+                <h4 style="margin-bottom: 0.5rem; color: #333;">Create Your Profile</h4>
+                <p style="color: #666;">Sign up and list the skills you can offer and what you'd like to learn.</p>
+            </div>
+            
+            <div style="text-align: center; padding: 1rem;">
+                <div style="background: #667eea; color: white; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; font-size: 1.2rem; font-weight: bold;">2</div>
+                <h4 style="margin-bottom: 0.5rem; color: #333;">Browse & Connect</h4>
+                <p style="color: #666;">Search for people with skills you want to learn and send swap requests.</p>
+            </div>
+            
+            <div style="text-align: center; padding: 1rem;">
+                <div style="background: #667eea; color: white; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; font-size: 1.2rem; font-weight: bold;">3</div>
+                <h4 style="margin-bottom: 0.5rem; color: #333;">Start Learning</h4>
+                <p style="color: #666;">Once accepted, coordinate with your swap partner and start exchanging skills!</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="cta-section" style="text-align: center; margin-top: 4rem; padding: 2rem 0;">
+    <div class="card" style="background: linear-gradient(45deg, #667eea, #764ba2); color: white;">
+        <h2 style="margin-bottom: 1rem;">Ready to Start Your Skill Journey?</h2>
+        <p style="margin-bottom: 2rem; opacity: 0.9;">Join thousands of learners who are already trading skills and growing together.</p>
+        <a href="{{ url_for('register') }}" class="btn" style="background: white; color: #667eea; font-weight: bold;">
+            <i class="fas fa-rocket"></i> Join Now - It's Free!
+        </a>
+    </div>
+</div>
+
+<style>
+    .hero-section h1 {
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+        transition: all 0.3s ease;
+    }
+    
+    .features-section .card {
+        transition: all 0.3s ease;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(30px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .fade-in {
+        animation: fadeIn 0.8s ease-out;
+    }
+    
+    .fade-in:nth-child(2) { animation-delay: 0.2s; }
+    .fade-in:nth-child(3) { animation-delay: 0.4s; }
+</style>
+{% endblock %}

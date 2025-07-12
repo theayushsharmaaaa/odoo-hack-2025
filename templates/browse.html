@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Browse Skills - SkillSwap{% endblock %}
+
+{% block content %}
+<div class="browse-header" style="margin-bottom: 2rem;">
+    <div class="card">
+        <h1 style="color: #333; margin-bottom: 1rem;">
+            <i class="fas fa-search"></i> Browse Skills
+        </h1>
+        <p style="color: #666; margin-bottom: 1.5rem;">Discover talented people and find the skills you need</p>
+        
+        <!-- Search and Filter Bar -->
+        <div class="search-bar" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+            <div style="flex: 1;">
+                <input type="text" id="skillSearch" placeholder="Search for skills (e.g., Python, Guitar, Cooking...)" 
+                       value="{{ skill_filter }}" style="width: 100%; padding: 0.75rem; border: 2px solid #ddd; border-radius: 25px; font-size: 1rem;">
+            </div>
+            <button class="btn" onclick="searchSkills()" style="padding: 0.75rem 1.5rem; border-radius: 25px;">
+                <i class="fas fa-search"></i> Search
+            </button>
+        </div>
+        
+        <!-- Filter Options -->
+        <div class="filter-options" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+            <label style="margin: 0;">
+                <input type="checkbox" id="locationFilter" style="margin-right: 0.5rem;">
+                Show only people in my area
+            </label>
+            <select id="sortBy" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 5px;">
+                <option value="newest">Newest Members</option>
+                <option value="rating">Highest Rated</option>
+                <option value="active">Most Active</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="browse-results">
+    {% if users %}
+        <div class="results-header" style="margin-bottom: 1rem;">
+            <p style="color: #666;">Found {{ users|length }} skilled people</p>
+        </div>
+        
+        <div class="users-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem;">
+            {% for user in users %}
+            <div class="user-card card" style="transition: all 0.3s ease; cursor: pointer;" onclick="viewUserProfile({{ user.id }})">
+                <div class="user-header" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="user-avatar" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(45deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
+                        {% if user.profile_photo %}
+                            <img src="{{ url_for('static', filename='uploads/' + user.profile_photo) }}" alt="Profile" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+                        {% else %}
+                            <i class="fas fa-user"></i>
+                        {% endif %}
+                    </div>
+                    <div style="flex: 1;">
+                        <h3 style="margin: 0 0 0.25rem 0; color: #333;">{{ user.full_name }}</h3>
+                        {% if user.location %}
+                        <p style="margin: 0; color: #666; font-size: 0.9rem;">
+                            <i class="fas fa-map-marker-alt"></i> {{ user.location }}
+                        </p>
+                        {% endif %}
+                    </div>
+                    <div class="user-rating" style="text-align: center;">
+                        <div style="color: #ffc107; font-size: 1.2rem;">
+                            {% for i in range(5) %}
+                                <i class="fas fa-star{% if i >= (user.avg_rating or 0) %} opacity-25{% endif %}"></i>
+                            {% endfor %}
+                        </div>
+                        <small style="color: #666;">{{ user.rating_count or 0 }} reviews</small>
+                    </div>
+                </div>
+                
+                <div class="user-skills" style="margin-bottom: 1rem;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #333; font-size: 0.9rem;">Skills Offered:</h4>
+                    <div class="skills-tags" style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                        {% set skills_list = user.skills.split(',') if user.skills else [] %}
+                        {% for skill in skills_list[:3] %}
+                        <span class="skill-tag" style="background: #28a745;">{{ skill.strip() }}</span>
+                        {% endfor %}
+                        {% if skills_list|length > 3 %}
+                        <span class="skill-tag" style="background: #6c757d;">+{{ skills_list|length - 3 }} more</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="user-actions" style="display: flex; gap: 0.5rem;">
+                    <button class="btn" onclick="event.stopPropagation(); showSwapModal({{ user.id }}, '{{ user.full_name }}')" style="flex: 1; padding: 0.5rem;">
+                        <i class="fas fa-exchange-alt"></i> Request Swap
+                    </button>
+                    <button class="btn btn-secondary" onclick="event.stopPropagation(); viewUserProfile({{ user.id }})" style="padding: 0.5rem 1rem;">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Load More Button -->
+        <div style="text-align: center; margin-top: 2rem;">
+            <button class="btn btn-secondary" onclick="loadMore()" style="padding: 1rem 2rem;">
+                <i class="fas fa-plus"></i> Load More
+            </button>
+        </div>
+    {% else %}
+        <div class="no-results card" style="text-align: center; padding: 3rem;">
+            <i class="fas fa-search" style="font-size: 4rem; color: #ddd; margin-bottom: 1rem;"></i>
+            <h3 style="color: #666; margin-bottom: 1rem;">No Skills Found</h3>
+            <p style="color: #666; margin-bottom: 2rem;">
+                {% if skill_filter %}
+                    No users found with skills matching "{{ skill_filter }}". Try adjusting your search terms.
+                {% else %}
+                    No users are currently offering skills. Be the first to add your skills!
+                {% endif %}
+            </p>
+            <div>
+                <button class="btn" onclick="clearSearch()" style="margin-right: 1rem;">
+                    <i class="fas fa-refresh"></i> Clear Search
+                </button>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-plus"></i> Add Your Skills
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Swap Request Modal -->
+<div id="swapModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div class="modal-content" style="background: white; margin: 5% auto; padding: 2rem; border-radius: 15px; max-width: 600px; position: relative;">
+        <span class="close" onclick="closeSwapModal()" style="position: absolute; top: 1rem; right: 1rem; font-size: 1.5rem; cursor: pointer;">&times;</span>
+        
+        <h2 style="color: #333; margin-bottom: 1rem;">Request Skill Swap</h2>
+        <p style="color: #666; margin-bottom: 1.5rem;">Send a swap request to <strong id="targetUserName"></strong></p>
+        
+        <form id="swapRequestForm">
+            <input type="hidden" id="targetUserId" name="provider_id">
+            
+            <div class="form-group">
+                <label for="offered_skill_id">What skill can you offer? *</label>
+                <select id="offered_skill_id" name="offered_skill_id" required>
+                    <option value="">Select a skill you can teach</option>
+                    <!-- Will be populated by JavaScript -->
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="requested_skill_id">What skill do you want to learn? *</label>
+                <select id="requested_skill_id" name="requested_skill_id" required>
+                    <option value="">Select a skill you want to learn</option>
+                    <!-- Will be populated by JavaScript -->
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="swap_message">Message (Optional)</label>
+                <textarea id="swap_message" name="message" rows="4" placeholder="Tell them why you'd like to swap skills, your experience level, availability, etc."></textarea>
+            </div>
+            
+            <button type="submit" class="btn" style="width: 100%;">
+                <i class="fas fa-paper-plane"></i> Send Swap Request
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- User Profile Modal -->
+<div id="userProfileModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div class="modal-content" style="background: white; margin: 3% auto; padding: 2rem; border-radius: 15px; max-width: 800px; position: relative; max-height: 90vh; overflow-y: auto;">
+        <span class="close" onclick="closeUserProfileModal()" style="position: absolute; top: 1rem; right: 1rem; font-size: 1.5rem; cursor: pointer;">&times;</span>
+        
+        <div id="userProfileContent">
+            <!-- Will be populated by JavaScript -->
+        </div>
+    </div>
+</div>
+
+<style>
+.user-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+}
+
+.skills-tags {
+    min-height: 2rem;
+}
+
+.opacity-25 {
+    opacity: 0.25;
+}
+
+.search-bar input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+.filter-options {
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+}
+
+@media (max-width: 768px) {
+    .search-bar {
+        flex-direction: column;
+    }
+    
+    .filter-options {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .users-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentUserId = null;
+let userSkills = { offered: [], wanted: [] };
+
+// Load user skills on page load
+document.addEventListener('DOMContentLoaded', async function() {
+    try {
+        const response = await apiRequest('/api/skills');
+        userSkills.offered = response.filter(skill => skill.skill_type === 'offered');
+        userSkills.wanted = response.filter(skill => skill.skill_type === 'wanted');
+    } catch (error) {
+        console.error('Failed to load user skills:', error);
+    }
+});
+
+function searchSkills() {
+    const query = document.getElementById('skillSearch').value;
+    const url = new URL(window.location);
+    url.searchParams.set('skill', query);
+    window.location.href = url.toString();
+}
+
+function clearSearch() {
+    document.getElementById('skillSearch').value = '';
+    window.location.href = window.location.pathname;
+}
+
+// Enter key search
+document.getElementById('skillSearch').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        searchSkills();
+    }
+});
+
+async function showSwapModal(userId, userName) {
+    currentUserId = userId;
+    document.getElementById('targetUserId').value = userId;
+    document.getElementById('targetUserName').textContent = userName;
+
+    const offeredSelect = document.getElementById('offered_skill_id');
+    const requestedSelect = document.getElementById('requested_skill_id');
+
+    offeredSelect.innerHTML = '<option value="">Select a skill you can teach</option>';
+    requestedSelect.innerHTML = '<option value="">Select a skill you want to learn</option>';
+
+    userSkills.offered.forEach(skill => {
+        const option = document.createElement('option');
+        option.value = skill.id;
+        option.textContent = skill.skill_name;
+        offeredSelect.appendChild(option);
+    });
+
+    try {
+        const response = await apiRequest(`/api/users/${userId}/skills`);
+        const targetSkills = response.filter(skill => skill.skill_type === 'offered');
+        targetSkills.forEach(skill => {
+            const option = document.createElement('option');
+            option.value = skill.id;
+            option.textContent = skill.skill_name;
+            requestedSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Failed to load target user skills:', error);
+    }
+
+    document.getElementById('swapModal').style.display = 'block';
+}
+
+function closeSwapModal() {
+    document.getElementById('swapModal').style.display = 'none';
+    document.getElementById('swapRequestForm').reset();
+}
+
+async function viewUserProfile(userId) {
+    try {
+        const response = await apiRequest(`/api/users/${userId}`);
+        const user = response.user;
+        const skills = response.skills;
+
+        const skillHTML = skills.map(skill =>
+            `<li><strong>${skill.skill_type === 'offered' ? 'Offers' : 'Wants'}:</strong> ${skill.skill_name}</li>`
+        ).join('');
+
+        document.getElementById('userProfileContent').innerHTML = `
+            <h2>${user.full_name}</h2>
+            <p><strong>Location:</strong> ${user.location || 'Not specified'}</p>
+            <ul>${skillHTML}</ul>
+        `;
+
+        document.getElementById('userProfileModal').style.display = 'block';
+    } catch (error) {
+        console.error('Failed to load user profile:', error);
+    }
+}
+
+function closeUserProfileModal() {
+    document.getElementById('userProfileModal').style.display = 'none';
+}
+
+document.getElementById('swapRequestForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const data = {
+        provider_id: document.getElementById('targetUserId').value,
+        offered_skill_id: document.getElementById('offered_skill_id').value,
+        requested_skill_id: document.getElementById('requested_skill_id').value,
+        message: document.getElementById('swap_message').value.trim()
+    };
+
+    try {
+        const response = await apiRequest('/api/swap-request', 'POST', data);
+        alert(response.message || 'Swap request sent!');
+        closeSwapModal();
+    } catch (error) {
+        alert(error.error || 'Failed to send swap request');
+    }
+});
+
+// Generic helper for API calls
+async function apiRequest(url, method = 'GET', body = null) {
+    const options = {
+        method,
+        headers: { 'Content-Type': 'application/json' }
+    };
+    if (body) options.body = JSON.stringify(body);
+
+    const response = await fetch(url, options);
+    const data = await response.json();
+
+    if (!response.ok) throw data;
+    return data;
+}
+</script>
+{% endblock %}

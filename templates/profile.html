@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - SkillSwap{% endblock %}
+
+{% block content %}
+<div class="profile-header" style="margin-bottom: 2rem;">
+    <div class="card">
+        <div style="display: flex; align-items: center; gap: 2rem;">
+            <div class="profile-photo" style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(45deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem;">
+                {% if user.profile_photo %}
+                    <img src="{{ url_for('static', filename='uploads/' + user.profile_photo) }}" alt="Profile" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+                {% else %}
+                    <i class="fas fa-user"></i>
+                {% endif %}
+            </div>
+            <div style="flex: 1;">
+                <h1 style="color: #333; margin-bottom: 0.5rem;">{{ user.full_name }}</h1>
+                <p style="color: #666; margin-bottom: 0.5rem;">@{{ user.username }}</p>
+                {% if user.location %}
+                <p style="color: #666; margin-bottom: 0.5rem;">
+                    <i class="fas fa-map-marker-alt"></i> {{ user.location }}
+                </p>
+                {% endif %}
+                <p style="color: #666; margin-bottom: 1rem;">
+                    <i class="fas fa-envelope"></i> {{ user.email }}
+                </p>
+                <button class="btn" onclick="showEditProfileModal()">
+                    <i class="fas fa-edit"></i> Edit Profile
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="profile-content">
+    <div class="grid">
+        <!-- Profile Settings -->
+        <div class="card">
+            <h2 style="color: #333; margin-bottom: 1rem;">
+                <i class="fas fa-cog"></i> Profile Settings
+            </h2>
+            
+            <div class="settings-list">
+                <div class="setting-item" style="padding: 1rem; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 style="margin: 0 0 0.5rem 0; color: #333;">Profile Visibility</h4>
+                            <p style="margin: 0; color: #666; font-size: 0.9rem;">Control who can see your profile</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="profile_visibility" {{ 'checked' if user.is_public else '' }}>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="setting-item" style="padding: 1rem; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 1rem;">
+                    <div>
+                        <h4 style="margin: 0 0 0.5rem 0; color: #333;">Availability Status</h4>
+                        <p style="margin: 0 0 1rem 0; color: #666; font-size: 0.9rem;">Let others know when you're available for skill swaps</p>
+                        <select id="availability_status" style="width: 100%;">
+                            <option value="available" {{ 'selected' if user.availability == 'available' else '' }}>Available</option>
+                            <option value="busy" {{ 'selected' if user.availability == 'busy' else '' }}>Busy</option>
+                            <option value="away" {{ 'selected' if user.availability == 'away' else '' }}>Away</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="setting-item" style="padding: 1rem; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 1rem;">
+                    <div>
+                        <h4 style="margin: 0 0 0.5rem 0; color: #333;">Change Password</h4>
+                        <p style="margin: 0 0 1rem 0; color: #666; font-size: 0.9rem;">Update your account password</p>
+                        <button class="btn btn-secondary" onclick="showChangePasswordModal()">
+                            <i class="fas fa-lock"></i> Change Password
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Profile Statistics -->
+        <div class="card">
+            <h2 style="color: #333; margin-bottom: 1rem;">
+                <i class="fas fa-chart-bar"></i> Your Stats
+            </h2>
+            
+            <div class="stats-grid" style="display: grid; gap: 1rem;">
+                <div class="stat-card" style="text-align: center; padding: 1.5rem; background: linear-gradient(45deg, #28a745, #20c997); border-radius: 10px; color: white;">
+                    <h3 style="margin: 0 0 0.5rem 0; font-size: 2rem;">{{ user_stats.total_skills or 0 }}</h3>
+                    <p style="margin: 0; opacity: 0.9;">Total Skills</p>
+                </div>
+                
+                <div class="stat-card" style="text-align: center; padding: 1.5rem; background: linear-gradient(45deg, #17a2b8, #6f42c1); border-radius: 10px; color: white;">
+                    <h3 style="margin: 0 0 0.5rem 0; font-size: 2rem;">{{ user_stats.completed_swaps or 0 }}</h3>
+                    <p style="margin: 0; opacity: 0.9;">Completed Swaps</p>
+                </div>
+                
+                <div class="stat-card" style="text-align: center; padding: 1.5rem; background: linear-gradient(45deg, #ffc107, #fd7e14); border-radius: 10px; color: white;">
+                    <h3 style="margin: 0 0 0.5rem 0; font-size: 2rem;">{{ user_stats.avg_rating or 0 }}/5</h3>
+                    <p style="margin: 0; opacity: 0.9;">Average Rating</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Profile Modal -->
+<div id="editProfileModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div class="modal-content" style="background: white; margin: 5% auto; padding: 2rem; border-radius: 15px; max-width: 600px; position: relative; max-height: 90vh; overflow-y: auto;">
+        <span class="close" onclick="closeEditProfileModal()" style="position: absolute; top: 1rem; right: 1rem; font-size: 1.5rem; cursor: pointer;">&times;</span>
+        
+        <h2 style="color: #333; margin-bottom: 1rem;">Edit Profile</h2>
+        
+        <form id="editProfileForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="profile_photo">Profile Photo</label>
+                <input type="file" id="profile_photo" name="profile_photo" accept="image/*">
+                <small style="color: #666;">Max size: 5MB. Supported formats: JPG, PNG, GIF</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="full_name">Full Name *</label>
+                <input type="text" id="full_name" name="full_name" value="{{ user.full_name }}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email *</label>
+                <input type="email" id="email" name="email" value="{{ user.email }}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="location">Location</label>
+                <input type="text" id="location" name="location" value="{{ user.location or '' }}" placeholder="e.g., New York, NY">
+            </div>
+            
+            <button type="submit" class="btn" style="width: 100%;">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Change Password Modal -->
+<div id="changePasswordModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div class="modal-content" style="background: white; margin: 15% auto; padding: 2rem; border-radius: 15px; max-width: 400px; position: relative;">
+        <span class="close" onclick="closeChangePasswordModal()" style="position: absolute; top: 1rem; right: 1rem; font-size: 1.5rem; cursor: pointer;">&times;</span>
+        
+        <h2 style="color: #333; margin-bottom: 1rem;">Change Password</h2>
+        
+        <form id="changePasswordForm">
+            <div class="form-group">
+                <label for="current_password">Current Password *</label>
+                <input type="password" id="current_password" name="current_password" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="new_password">New Password *</label>
+                <input type="password" id="new_password" name="new_password" required minlength="6">
+            </div>
+            
+            <div class="form-group">
+                <label for="confirm_password">Confirm New Password *</label>
+                <input type="password" id="confirm_password" name="confirm_password" required>
+            </div>
+            
+            <button type="submit" class="btn" style="width: 100%;">
+                <i class="fas fa-lock"></i> Update Password
+            </button>
+        </form>
+    </div>
+</div>
+
+<style>
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #667eea;
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+.stat-card {
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.setting-item {
+    transition: all 0.3s ease;
+}
+
+.setting-item:hover {
+    background: #f8f9fa;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showEditProfileModal() {
+    document.getElementById('editProfileModal').style.display = 'block';
+}
+
+function closeEditProfileModal() {
+    document.getElementById('editProfileModal').style.display = 'none';
+}
+
+function showChangePasswordModal() {
+    document.getElementById('changePasswordModal').style.display = 'block';
+}
+
+function closeChangePasswordModal() {
+    document.getElementById('changePasswordModal').style.display = 'none';
+    document.getElementById('changePasswordForm').reset();
+}
+
+// Profile visibility toggle
+document.getElementById('profile_visibility').addEventListener('change', async function() {
+    try {
+        const response = await apiRequest('/api/profile/visibility', {
+            method: 'PUT',
+            body: JSON.stringify({ is_public: this.checked })
+        });
+        
+        showAlert(response.message, 'success');
+    } catch (error) {
+        showAlert(error.message, 'error');
+        this.checked = !this.checked; // Revert on error
+    }
+});
+
+// Availability status change
+document.getElementById('availability_status').addEventListener('change', async function() {
+    try {
+        const response = await apiRequest('/api/profile/availability', {
+            method: 'PUT',
+            body: JSON.stringify({ availability: this.value })
+        });
+        
+        showAlert(response.message, 'success');
+    } catch (error) {
+        showAlert(error.message, 'error');
+    }
+});
+
+// Edit profile form
+document.getElementById('editProfileForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const button = this.querySelector('button[type="submit"]');
+    const originalText = button.innerHTML;
+    showLoading(button);
+    
+    try {
+        const formData = new FormData(this);
+        
+        const response = await fetch('/api/profile', {
+            method: 'PUT',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to update profile');
+        }
+        
+        showAlert(data.message, 'success');
+        closeEditProfileModal();
+        
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+        
+    } catch (error) {
+        showAlert(error.message, 'error');
+        hideLoading(button, originalText);
+    }
+});
+
+// Change password form
+document.getElementById('changePasswordForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const newPassword = document.getElementById('new_password').value;
+    const confirmPassword = document.getElementById('confirm_password').value;
+    
+    if (newPassword !== confirmPassword) {
+        showAlert('New passwords do not match', 'error');
+        return;
+    }
+    
+    const button = this.querySelector('button[type="submit"]');
+    const originalText = button.innerHTML;
+    showLoading(button);
+    
+    try {
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData);
+        
+        const response = await apiRequest('/api/profile/password', {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+        
+        showAlert(response.message, 'success');
+        closeChangePasswordModal();
+        
+    } catch (error) {
+        showAlert(error.message, 'error');
+        hideLoading(button, originalText);
+    }
+});
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    const editModal = document.getElementById('editProfileModal');
+    const passwordModal = document.getElementById('changePasswordModal');
+    
+    if (event.target == editModal) {
+        closeEditProfileModal();
+    }
+    if (event.target == passwordModal) {
+        closeChangePasswordModal();
+    }
+}
+</script>
+{% endblock %}
