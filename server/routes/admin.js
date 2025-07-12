@@ -2,7 +2,7 @@
 const express = require('express');
 const User = require('../models/user');
 const SwapRequest = require('../models/swap');
-const authorizeAdmin = require('../middleware/adminAuth'); // Admin auth middleware
+const authorizeAdmin = require('../middleware/adminAuth');
 
 const router = express.Router();
 
@@ -43,10 +43,12 @@ router.put('/users/:id/active', authorizeAdmin, async (req, res) => {
   }
 });
 
-// Admin: Get all swap requests
+// Admin: Get all swap requests - FIXED to get all
 router.get('/swaps', authorizeAdmin, async (req, res) => {
   try {
-    const requests = await SwapRequest.findUserRequests(''); // Pass empty string to get all, or modify model to find all
+    // Pass null to findUserRequests to get all swaps
+    const requests = await SwapRequest.findUserRequests(null);
+
     // For each request, fetch details of both fromUser and toUser
     const detailedRequests = await Promise.all(requests.map(async (request) => {
       const fromUser = await User.findById(request.fromUserId);
@@ -55,12 +57,14 @@ router.get('/swaps', authorizeAdmin, async (req, res) => {
       return {
         ...request,
         fromUserName: fromUser ? fromUser.name : 'Unknown User',
+        fromUserEmail: fromUser ? fromUser.email : 'N/A', // Added email
         fromUserProfilePhoto: fromUser ? fromUser.profilePhoto : 'https://placehold.co/32x32/cccccc/000000?text=U',
         fromUserSkillsOffered: fromUser ? fromUser.skillsOffered : [],
         fromUserSkillsWanted: fromUser ? fromUser.skillsWanted : [],
         fromUserRating: fromUser ? fromUser.rating : 0,
 
         toUserName: toUser ? toUser.name : 'Unknown User',
+        toUserEmail: toUser ? toUser.email : 'N/A', // Added email
         toUserProfilePhoto: toUser ? toUser.profilePhoto : 'https://placehold.co/32x32/cccccc/000000?text=U',
         toUserSkillsOffered: toUser ? toUser.skillsOffered : [],
         toUserSkillsWanted: toUser ? toUser.skillsWanted : [],
@@ -79,7 +83,7 @@ router.put('/swaps/:id/status', authorizeAdmin, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  if (!['pending', 'accepted', 'rejected'].includes(status)) {
+  if (!['pending', 'accepted', 'rejected', 'completed'].includes(status)) { // Added 'completed'
     return res.status(400).json({ message: 'Invalid status provided' });
   }
 
@@ -95,6 +99,24 @@ router.put('/swaps/:id/status', authorizeAdmin, async (req, res) => {
     res.status(500).json({ message: 'Server error updating swap request status' });
   }
 });
+
+// Admin: Delete any swap request - NEW
+router.delete('/swaps/:id', authorizeAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const deleted = await SwapRequest.delete(id);
+    if (deleted) {
+      res.json({ message: 'Swap request deleted successfully' });
+    } else {
+      res.status(404).json({ message: 'Swap request not found' });
+    }
+  } catch (err) {
+    console.error('Admin: Error deleting swap request:', err.message);
+    res.status(500).json({ message: 'Server error deleting swap request' });
+  }
+});
+
 
 module.exports = router;
 

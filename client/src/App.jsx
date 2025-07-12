@@ -9,7 +9,7 @@ import Register from './pages/Register';
 import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
 import SwapRequestForm from './pages/SwapRequestForm';
-import AdminPanel from './pages/AdminPanel';
+import AdminPanel from './pages/AdminPanel'; // Ensure this import is correct
 
 const App = () => {
   return (
@@ -25,7 +25,7 @@ const App = () => {
               <Route path="/profile" element={<Profile />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/swap-request/:toUserId" element={<SwapRequestForm />} />
-              <Route path="/admin" element={<AdminPanel />} />
+              <Route path="/admin" element={<AdminPanel />} /> {/* This route points to AdminPanel */}
             </Routes>
           </main>
         </div>

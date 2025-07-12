@@ -11,8 +11,8 @@ class SwapRequest {
       db.run(`INSERT INTO swap_requests (id, fromUserId, toUserId, status, offeredSkill, wantedSkill, message, createdAt)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, fromUserId, toUserId, status,
-         offeredSkill ? JSON.stringify(offeredSkill) : null, // Ensure these are correctly stringified objects
-         wantedSkill ? JSON.stringify(wantedSkill) : null,   // Ensure these are correctly stringified objects
+         offeredSkill ? JSON.stringify(offeredSkill) : null,
+         wantedSkill ? JSON.stringify(wantedSkill) : null,
          message || null, createdAt],
         function (err) {
           if (err) {
@@ -41,24 +41,30 @@ class SwapRequest {
     });
   }
 
+  // MODIFIED: findUserRequests can now optionally return all requests if userId is null/undefined
   static async findUserRequests(userId) {
     return new Promise((resolve, reject) => {
-      // Find requests where the user is either the sender or the receiver
-      db.all(`SELECT * FROM swap_requests WHERE fromUserId = ? OR toUserId = ? ORDER BY createdAt DESC`,
-        [userId, userId],
-        (err, rows) => {
-          if (err) {
-            reject(err);
-          } else {
-            const requests = rows.map(row => ({
-              ...row,
-              offeredSkill: row.offeredSkill ? JSON.parse(row.offeredSkill) : null,
-              wantedSkill: row.wantedSkill ? JSON.parse(row.wantedSkill) : null,
-            }));
-            resolve(requests);
-          }
+      let query = `SELECT * FROM swap_requests`;
+      let params = [];
+
+      if (userId) { // If userId is provided, filter by it
+        query += ` WHERE fromUserId = ? OR toUserId = ?`;
+        params = [userId, userId];
+      }
+      query += ` ORDER BY createdAt DESC`; // Always order by creation date
+
+      db.all(query, params, (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          const requests = rows.map(row => ({
+            ...row,
+            offeredSkill: row.offeredSkill ? JSON.parse(row.offeredSkill) : null,
+            wantedSkill: row.wantedSkill ? JSON.parse(row.wantedSkill) : null,
+          }));
+          resolve(requests);
         }
-      );
+      });
     });
   }
 
@@ -95,7 +101,7 @@ class SwapRequest {
     });
   }
 
-  static async delete(id) { // NEW: Delete a swap request
+  static async delete(id) {
     return new Promise((resolve, reject) => {
       db.run(`DELETE FROM swap_requests WHERE id = ?`, [id], function (err) {
         if (err) {
