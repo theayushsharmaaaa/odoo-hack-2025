@@ -86,3 +86,35 @@ The **Skill Swap Platform** is a web-based mini-application designed to foster a
 git clone https://github.com/your-username/odoo-hack-2025.git
 cd odoo-hack-2025/server
 npm install
+```
+
+Create a .env file inside the server/ directory:
+
+```bash
+JWT_SECRET=your_super_secret_jwt_key_please_change_this_in_production_and_keep_it_long
+PORT=5000
+```
+
+Start the backend server:
+```bash
+npm run dev
+```
+
+You should see:
+
+Connected to the SQLite database.
+
+Server running on port 5000
+
+(On first run) Default admin user created: admin@example.com / adminpassword
+
+## Frontend Setup
+
+```bash
+cd ../client
+npm install
+npm run dev
+```
+
+
+
