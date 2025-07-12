@@ -1,0 +1,643 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - SkillSwap{% endblock %}
+
+{% block content %}
+<div class="admin-dashboard">
+    <div class="dashboard-header">
+        <h1><i class="fas fa-shield-alt"></i> Admin Dashboard</h1>
+        <p>Manage users, skills, and swap requests</p>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-users"></i>
+            </div>
+            <div class="stat-content">
+                <h3>{{ total_users }}</h3>
+                <p>Total Users</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-handshake"></i>
+            </div>
+            <div class="stat-content">
+                <h3>{{ total_swaps }}</h3>
+                <p>Total Swaps</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-content">
+                <h3>{{ pending_swaps }}</h3>
+                <p>Pending Swaps</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stat-content">
+                <h3>{{ unapproved_skills|length }}</h3>
+                <p>Skills to Review</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Actions -->
+    <div class="admin-actions card">
+        <h2><i class="fas fa-tools"></i> Quick Actions</h2>
+        <div class="action-buttons">
+            <button class="btn btn-secondary" onclick="showUserManagement()">
+                <i class="fas fa-users-cog"></i> Manage Users
+            </button>
+            <button class="btn btn-secondary" onclick="showSkillApproval()">
+                <i class="fas fa-tasks"></i> Review Skills
+            </button>
+            <button class="btn btn-secondary" onclick="showSystemMessages()">
+                <i class="fas fa-broadcast-tower"></i> System Messages
+            </button>
+            <button class="btn btn-secondary" onclick="exportData()">
+                <i class="fas fa-download"></i> Export Data
+            </button>
+        </div>
+    </div>
+
+    <!-- Unapproved Skills Section -->
+    {% if unapproved_skills %}
+    <div class="card">
+        <h2><i class="fas fa-exclamation-triangle"></i> Skills Awaiting Approval</h2>
+        <div class="skills-review">
+            {% for skill in unapproved_skills %}
+            <div class="skill-review-item">
+                <div class="skill-info">
+                    <h4>{{ skill.skill_name }}</h4>
+                    <p><strong>User:</strong> {{ skill.user_name }}</p>
+                    <p><strong>Type:</strong> <span class="skill-tag">{{ skill.skill_type|title }}</span></p>
+                    <p><strong>Description:</strong> {{ skill.description or 'No description provided' }}</p>
+                </div>
+                <div class="skill-actions">
+                    <button class="btn btn-success" onclick="approveSkill({{ skill.id }})">
+                        <i class="fas fa-check"></i> Approve
+                    </button>
+                    <button class="btn btn-danger" onclick="rejectSkill({{ skill.id }})">
+                        <i class="fas fa-times"></i> Reject
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Activity -->
+    <div class="card">
+        <h2><i class="fas fa-history"></i> Recent Swap Activity</h2>
+        <div class="activity-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Requester</th>
+                        <th>Provider</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for swap in recent_swaps %}
+                    <tr>
+                        <td>{{ swap.created_at[:10] }}</td>
+                        <td>{{ swap.requester }}</td>
+                        <td>{{ swap.provider }}</td>
+                        <td>
+                            <span class="status-badge status-{{ swap.status }}">
+                                {{ swap.status|title }}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm" onclick="viewSwapDetails({{ swap.id }})">
+                                <i class="fas fa-eye"></i> View
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- User Management Modal -->
+    <div id="userManagementModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-users-cog"></i> User Management</h3>
+                <span class="close" onclick="closeModal('userManagementModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="search-bar">
+                    <input type="text" id="userSearch" placeholder="Search users..." onkeyup="searchUsers()">
+                </div>
+                <div id="usersList" class="users-list">
+                    <!-- Users will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Messages Modal -->
+    <div id="systemMessagesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-broadcast-tower"></i> System Messages</h3>
+                <span class="close" onclick="closeModal('systemMessagesModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="messageForm">
+                    <div class="form-group">
+                        <label for="messageTitle">Message Title:</label>
+                        <input type="text" id="messageTitle" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="messageContent">Message Content:</label>
+                        <textarea id="messageContent" name="message" rows="4" required></textarea>
+                    </div>
+                    <button type="submit" class="btn">
+                        <i class="fas fa-paper-plane"></i> Send Message
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.admin-dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.dashboard-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+    font-size: 2.5rem;
+    color: white;
+    margin-bottom: 0.5rem;
+}
+
+.dashboard-header p {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 1.1rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 15px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.stat-icon {
+    font-size: 2.5rem;
+    color: #667eea;
+}
+
+.stat-content h3 {
+    font-size: 2rem;
+    color: #333;
+    margin-bottom: 0.25rem;
+}
+
+.stat-content p {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.action-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.skills-review {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.skill-review-item {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 4px solid #667eea;
+}
+
+.skill-info h4 {
+    color: #333;
+    margin-bottom: 0.5rem;
+}
+
+.skill-info p {
+    margin: 0.25rem 0;
+    color: #666;
+}
+
+.skill-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.activity-table {
+    overflow-x: auto;
+}
+
+.activity-table table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.activity-table th,
+.activity-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.activity-table th {
+    background: #f8f9fa;
+    font-weight: bold;
+    color: #333;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 600px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 15px 15px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.close {
+    color: white;
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover {
+    opacity: 0.7;
+}
+
+.search-bar {
+    margin-bottom: 1rem;
+}
+
+.users-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+}
+
+.user-info h5 {
+    margin: 0;
+    color: #333;
+}
+
+.user-info p {
+    margin: 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.user-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .skill-review-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .action-buttons {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Modal functions
+function showUserManagement() {
+    document.getElementById('userManagementModal').style.display = 'block';
+    loadUsers();
+}
+
+function showSkillApproval() {
+    // Scroll to skills section
+    document.querySelector('.skills-review').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showSystemMessages() {
+    document.getElementById('systemMessagesModal').style.display = 'block';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}
+
+// Skill approval functions
+async function approveSkill(skillId) {
+    try {
+        const response = await fetch(`/api/admin/skills/${skillId}/approve`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showAlert('Skill approved successfully!', 'success');
+            location.reload();
+        } else {
+            showAlert(data.error || 'Failed to approve skill', 'error');
+        }
+    } catch (error) {
+        showAlert('Error approving skill', 'error');
+    }
+}
+
+async function rejectSkill(skillId) {
+    if (confirm('Are you sure you want to reject this skill?')) {
+        try {
+            const response = await fetch(`/api/admin/skills/${skillId}/reject`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                showAlert('Skill rejected successfully!', 'success');
+                location.reload();
+            } else {
+                showAlert(data.error || 'Failed to reject skill', 'error');
+            }
+        } catch (error) {
+            showAlert('Error rejecting skill', 'error');
+        }
+    }
+}
+
+// User management functions
+async function loadUsers() {
+    try {
+        const response = await fetch('/api/admin/users');
+        const users = await response.json();
+        
+        const usersList = document.getElementById('usersList');
+        usersList.innerHTML = '';
+        
+        users.forEach(user => {
+            const userItem = document.createElement('div');
+            userItem.className = 'user-item';
+            userItem.innerHTML = `
+                <div class="user-info">
+                    <h5>${user.full_name}</h5>
+                    <p>@${user.username} • ${user.email}</p>
+                    <p>Location: ${user.location || 'Not specified'}</p>
+                </div>
+                <div class="user-actions">
+                    <button class="btn btn-sm ${user.is_banned ? 'btn-success' : 'btn-danger'}" 
+                            onclick="${user.is_banned ? 'unbanUser' : 'banUser'}(${user.id})">
+                        <i class="fas fa-${user.is_banned ? 'unlock' : 'ban'}"></i>
+                        ${user.is_banned ? 'Unban' : 'Ban'}
+                    </button>
+                    <button class="btn btn-sm btn-secondary" onclick="viewUserDetails(${user.id})">
+                        <i class="fas fa-eye"></i> View
+                    </button>
+                </div>
+            `;
+            usersList.appendChild(userItem);
+        });
+    } catch (error) {
+        showAlert('Error loading users', 'error');
+    }
+}
+
+async function banUser(userId) {
+    if (confirm('Are you sure you want to ban this user?')) {
+        try {
+            const response = await fetch(`/api/admin/users/${userId}/ban`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                showAlert('User banned successfully!', 'success');
+                loadUsers();
+            } else {
+                showAlert(data.error || 'Failed to ban user', 'error');
+            }
+        } catch (error) {
+            showAlert('Error banning user', 'error');
+        }
+    }
+}
+
+async function unbanUser(userId) {
+    try {
+        const response = await fetch(`/api/admin/users/${userId}/unban`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showAlert('User unbanned successfully!', 'success');
+            loadUsers();
+        } else {
+            showAlert(data.error || 'Failed to unban user', 'error');
+        }
+    } catch (error) {
+        showAlert('Error unbanning user', 'error');
+    }
+}
+
+function searchUsers() {
+    const searchTerm = document.getElementById('userSearch').value.toLowerCase();
+    const userItems = document.querySelectorAll('.user-item');
+    
+    userItems.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        if (text.includes(searchTerm)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function viewUserDetails(userId) {
+    // Implement user details view
+    showAlert('User details view not implemented yet', 'error');
+}
+
+function viewSwapDetails(swapId) {
+    // Implement swap details view
+    showAlert('Swap details view not implemented yet', 'error');
+}
+
+// System messages
+document.getElementById('messageForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const messageData = {
+        title: formData.get('title'),
+        message: formData.get('message')
+    };
+    
+    try {
+        const response = await fetch('/api/admin/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(messageData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showAlert('System message sent successfully!', 'success');
+            this.reset();
+            closeModal('systemMessagesModal');
+        } else {
+            showAlert(data.error || 'Failed to send message', 'error');
+        }
+    } catch (error) {
+        showAlert('Error sending message', 'error');
+    }
+});
+
+// Export data function
+async function exportData() {
+    try {
+        const response = await fetch('/api/admin/export');
+        const blob = await response.blob();
+        
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `skillswap_data_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        showAlert('Data exported successfully!', 'success');
+    } catch (error) {
+        showAlert('Error exporting data', 'error');
+    }
+}
+</script>
+{% endblock %}

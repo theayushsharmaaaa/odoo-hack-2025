@@ -114,7 +114,7 @@
         <form id="editProfileForm" enctype="multipart/form-data">
             <div class="form-group">
                 <label for="profile_photo">Profile Photo</label>
-                <input type="file" id="profile_photo" name="profile_photo" accept="image/*">
+                <input type="file" id="profile_photo" name="profile_photo" accept="image/*" onclick="uploadProfilePicture()">
                 <small style="color: #666;">Max size: 5MB. Supported formats: JPG, PNG, GIF</small>
             </div>
             
@@ -236,6 +236,97 @@ input:checked + .slider:before {
 
 {% block scripts %}
 <script>
+
+function uploadProfilePicture() {
+    const fileInput = document.getElementById('profile_picture');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        alert('Please select a file first');
+        return;
+    }
+    
+    // Check file type
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+        alert('Please select a valid image file (PNG, JPG, JPEG, or GIF)');
+        return;
+    }
+    
+    // Check file size (16MB limit)
+    if (file.size > 16 * 1024 * 1024) {
+        alert('File size must be less than 16MB');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('profile_picture', file);
+    
+    // Show loading state
+    const uploadButton = document.getElementById('upload-button');
+    const originalText = uploadButton.textContent;
+    uploadButton.textContent = 'Uploading...';
+    uploadButton.disabled = true;
+    
+    fetch('/api/upload_profile_picture', {
+        method: 'POST',
+        body: formData // Don't set Content-Type header - let browser set it with boundary
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            alert('Profile picture updated successfully!');
+            // Update the profile picture display
+            const profileImg = document.getElementById('profile-image');
+            if (profileImg) {
+                profileImg.src = data.url;
+            }
+            // Clear the file input
+            fileInput.value = '';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while uploading the file');
+    })
+    .finally(() => {
+        // Reset button state
+        uploadButton.textContent = originalText;
+        uploadButton.disabled = false;
+    });
+}
+
+function updateProfile() {
+    const formData = {
+        full_name: document.getElementById('full_name').value,
+        location: document.getElementById('location').value,
+        availability: document.getElementById('availability').value,
+        is_public: document.getElementById('is_public').checked ? 1 : 0
+    };
+    
+    fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            alert('Profile updated successfully!');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while updating the profile');
+    });
+}
+
 function showEditProfileModal() {
     document.getElementById('editProfileModal').style.display = 'block';
 }

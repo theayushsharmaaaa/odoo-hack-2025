@@ -74,12 +74,11 @@
                 <div class="user-skills" style="margin-bottom: 1rem;">
                     <h4 style="margin: 0 0 0.5rem 0; color: #333; font-size: 0.9rem;">Skills Offered:</h4>
                     <div class="skills-tags" style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
-                        {% set skills_list = user.skills.split(',') if user.skills else [] %}
-                        {% for skill in skills_list[:3] %}
-                        <span class="skill-tag" style="background: #28a745;">{{ skill.strip() }}</span>
+                        {% for skill in user.offered_skills[:3] %}
+                        <span class="skill-tag" style="background: #28a745;">{{ skill.skill_name }}</span>
                         {% endfor %}
-                        {% if skills_list|length > 3 %}
-                        <span class="skill-tag" style="background: #6c757d;">+{{ skills_list|length - 3 }} more</span>
+                        {% if user.offered_skills|length > 3 %}
+                        <span class="skill-tag" style="background: #6c757d;">+{{ user.offered_skills|length - 3 }} more</span>
                         {% endif %}
                     </div>
                 </div>
@@ -220,14 +219,14 @@
 {% block scripts %}
 <script>
 let currentUserId = null;
-let userSkills = { offered: [], wanted: [] };
+let currentUserSkills = [];
 
-// Load user skills on page load
+// Load current user's skills on page load
 document.addEventListener('DOMContentLoaded', async function() {
     try {
         const response = await apiRequest('/api/skills');
-        userSkills.offered = response.filter(skill => skill.skill_type === 'offered');
-        userSkills.wanted = response.filter(skill => skill.skill_type === 'wanted');
+        currentUserSkills = response.filter(skill => skill.skill_type === 'offered');
+        console.log('Loaded current user skills:', currentUserSkills);
     } catch (error) {
         console.error('Failed to load user skills:', error);
     }
@@ -261,27 +260,45 @@ async function showSwapModal(userId, userName) {
     const offeredSelect = document.getElementById('offered_skill_id');
     const requestedSelect = document.getElementById('requested_skill_id');
 
+    // Clear existing options
     offeredSelect.innerHTML = '<option value="">Select a skill you can teach</option>';
     requestedSelect.innerHTML = '<option value="">Select a skill you want to learn</option>';
 
-    userSkills.offered.forEach(skill => {
+    // Populate "What skill can you offer?" with current user's skills
+    currentUserSkills.forEach(skill => {
         const option = document.createElement('option');
         option.value = skill.id;
         option.textContent = skill.skill_name;
         offeredSelect.appendChild(option);
     });
 
+    // Fetch and populate target user's skills
     try {
-        const response = await apiRequest(`/api/users/${userId}/skills`);
-        const targetSkills = response.filter(skill => skill.skill_type === 'offered');
-        targetSkills.forEach(skill => {
+        const response = await apiRequest(`/api/user/${userId}/skills`);
+        console.log('Target user skills response:', response);
+        
+        // Populate "What skill do you want to learn?" with target user's offered skills
+        response.offered_skills.forEach(skill => {
             const option = document.createElement('option');
             option.value = skill.id;
             option.textContent = skill.skill_name;
             requestedSelect.appendChild(option);
         });
+        
+        if (response.offered_skills.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No skills available';
+            option.disabled = true;
+            requestedSelect.appendChild(option);
+        }
     } catch (error) {
         console.error('Failed to load target user skills:', error);
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'Error loading skills';
+        option.disabled = true;
+        requestedSelect.appendChild(option);
     }
 
     document.getElementById('swapModal').style.display = 'block';
@@ -294,23 +311,27 @@ function closeSwapModal() {
 
 async function viewUserProfile(userId) {
     try {
-        const response = await apiRequest(`/api/users/${userId}`);
-        const user = response.user;
-        const skills = response.skills;
+        const response = await apiRequest(`/api/user/${userId}/skills`);
+        const userSkills = response.offered_skills || [];
 
-        const skillHTML = skills.map(skill =>
-            `<li><strong>${skill.skill_type === 'offered' ? 'Offers' : 'Wants'}:</strong> ${skill.skill_name}</li>`
+        const skillHTML = userSkills.map(skill =>
+            `<li><strong>Offers:</strong> ${skill.skill_name} - ${skill.description || 'No description'}</li>`
         ).join('');
 
         document.getElementById('userProfileContent').innerHTML = `
-            <h2>${user.full_name}</h2>
-            <p><strong>Location:</strong> ${user.location || 'Not specified'}</p>
-            <ul>${skillHTML}</ul>
+            <h2>User Profile</h2>
+            <h3>Skills Offered:</h3>
+            <ul>${skillHTML || '<li>No skills offered</li>'}</ul>
         `;
 
         document.getElementById('userProfileModal').style.display = 'block';
     } catch (error) {
         console.error('Failed to load user profile:', error);
+        document.getElementById('userProfileContent').innerHTML = `
+            <h2>Error</h2>
+            <p>Failed to load user profile. Please try again.</p>
+        `;
+        document.getElementById('userProfileModal').style.display = 'block';
     }
 }
 
@@ -322,18 +343,24 @@ document.getElementById('swapRequestForm').addEventListener('submit', async func
     e.preventDefault();
 
     const data = {
-        provider_id: document.getElementById('targetUserId').value,
-        offered_skill_id: document.getElementById('offered_skill_id').value,
-        requested_skill_id: document.getElementById('requested_skill_id').value,
+        provider_id: parseInt(document.getElementById('targetUserId').value),
+        offered_skill_id: parseInt(document.getElementById('offered_skill_id').value),
+        requested_skill_id: parseInt(document.getElementById('requested_skill_id').value),
         message: document.getElementById('swap_message').value.trim()
     };
 
+    if (!data.offered_skill_id || !data.requested_skill_id) {
+        alert('Please select both skills for the swap.');
+        return;
+    }
+
     try {
         const response = await apiRequest('/api/swap-request', 'POST', data);
-        alert(response.message || 'Swap request sent!');
+        alert(response.message || 'Swap request sent successfully!');
         closeSwapModal();
     } catch (error) {
-        alert(error.error || 'Failed to send swap request');
+        console.error('Swap request error:', error);
+        alert(error.error || 'Failed to send swap request. Please try again.');
     }
 });
 
@@ -348,8 +375,16 @@ async function apiRequest(url, method = 'GET', body = null) {
     const response = await fetch(url, options);
     const data = await response.json();
 
-    if (!response.ok) throw data;
+    if (!response.ok) {
+        console.error('API Error:', data);
+        throw data;
+    }
     return data;
+}
+
+function loadMore() {
+    // Implement load more functionality if needed
+    console.log('Load more clicked');
 }
 </script>
 {% endblock %}

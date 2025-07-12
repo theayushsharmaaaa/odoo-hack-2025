@@ -1,15 +1,28 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import sqlite3
 import os
 from datetime import datetime
 import uuid
+import csv
+import io
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
+UPLOAD_FOLDER = os.path.join('static', 'uploads')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Allowed file extensions for profile pictures
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Database initialization
 def init_db():
@@ -229,21 +242,6 @@ def dashboard():
     
     return render_template('dashboard.html', skills=skills, pending_requests=pending_requests, sent_requests=sent_requests)
 
-# @app.route('/profile')
-# def profile():
-#     if 'user_id' not in session:
-#         return redirect(url_for('login'))
-    
-#     conn = get_db()
-#     cursor = conn.cursor()
-#     cursor.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],))
-#     user = cursor.fetchone()
-#     conn.close()
-    
-#     return render_template('profile.html', user=user)
-
-
-
 @app.route('/profile')
 def profile():
     if 'user_id' not in session:
@@ -255,7 +253,7 @@ def profile():
     cursor.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],))
     user = cursor.fetchone()
 
-    # 👇 ADD this block to provide user_stats
+    # Get user stats
     cursor.execute('''
         SELECT 
             (SELECT COUNT(*) FROM skills WHERE user_id = ?) as total_skills,
@@ -268,6 +266,157 @@ def profile():
 
     return render_template('profile.html', user=user, user_stats=user_stats)
 
+@app.route('/api/upload_profile_picture', methods=['POST'])
+def api_upload_profile_picture():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if 'profile_picture' not in request.files:
+        return jsonify({'error': 'No file selected'}), 400
+    
+    file = request.files['profile_picture']
+    
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if file and allowed_file(file.filename):
+        # Generate unique filename
+        filename = str(uuid.uuid4()) + '.' + file.filename.rsplit('.', 1)[1].lower()
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        try:
+            file.save(file_path)
+            
+            # Update user's profile picture in database
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE users SET profile_photo = ? WHERE id = ?
+            ''', (filename, session['user_id']))
+            conn.commit()
+            conn.close()
+            
+            return jsonify({
+                'message': 'Profile picture updated successfully',
+                'filename': filename,
+                'url': url_for('uploaded_file', filename=filename)
+            }), 200
+            
+        except Exception as e:
+            return jsonify({'error': 'Failed to save file'}), 500
+    
+    return jsonify({'error': 'Invalid file type'}), 400
+
+@app.route('/upload_profile_picture', methods=['POST'])
+def upload_profile_picture():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if 'profile_picture' not in request.files:
+        return jsonify({'error': 'No file selected'}), 400
+    
+    file = request.files['profile_picture']
+    
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if file and allowed_file(file.filename):
+        # Generate unique filename
+        filename = str(uuid.uuid4()) + '.' + file.filename.rsplit('.', 1)[1].lower()
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        try:
+            file.save(file_path)
+            
+            # Update user's profile picture in database
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE users SET profile_photo = ? WHERE id = ?
+            ''', (filename, session['user_id']))
+            conn.commit()
+            conn.close()
+            
+            return jsonify({
+                'message': 'Profile picture updated successfully',
+                'filename': filename
+            }), 200
+            
+        except Exception as e:
+            return jsonify({'error': 'Failed to save file'}), 500
+    
+    return jsonify({'error': 'Invalid file type'}), 400
+
+@app.route('/api/profile', methods=['GET', 'PUT'])
+def api_profile():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    if request.method == 'GET':
+        cursor.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],))
+        user = cursor.fetchone()
+        conn.close()
+        
+        if user:
+            user_dict = dict(user)
+            # Remove sensitive data
+            user_dict.pop('password_hash', None)
+            return jsonify(user_dict)
+        else:
+            return jsonify({'error': 'User not found'}), 404
+    
+    elif request.method == 'PUT':
+        data = request.get_json()
+        full_name = data.get('full_name')
+        location = data.get('location')
+        availability = data.get('availability')
+        is_public = data.get('is_public', 1)
+        
+        if not full_name:
+            return jsonify({'error': 'Full name is required'}), 400
+        
+        cursor.execute('''
+            UPDATE users 
+            SET full_name = ?, location = ?, availability = ?, is_public = ?
+            WHERE id = ?
+        ''', (full_name, location, availability, is_public, session['user_id']))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'message': 'Profile updated successfully'}), 200
+
+@app.route('/update_profile', methods=['POST'])
+def update_profile():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json()
+    full_name = data.get('full_name')
+    location = data.get('location')
+    availability = data.get('availability')
+    is_public = data.get('is_public', 1)
+    
+    if not full_name:
+        return jsonify({'error': 'Full name is required'}), 400
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        UPDATE users 
+        SET full_name = ?, location = ?, availability = ?, is_public = ?
+        WHERE id = ?
+    ''', (full_name, location, availability, is_public, session['user_id']))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'message': 'Profile updated successfully'}), 200
+
 @app.route('/browse')
 def browse():
     if 'user_id' not in session:
@@ -277,16 +426,16 @@ def browse():
     conn = get_db()
     cursor = conn.cursor()
 
+    # Get users with their offered skills
     query = '''
-        SELECT DISTINCT u.id, u.full_name, u.location, u.profile_photo, 
-               GROUP_CONCAT(s.skill_name) as skills
+        SELECT u.id, u.full_name, u.location, u.profile_photo
         FROM users u
         JOIN skills s ON u.id = s.user_id
         WHERE u.is_public = 1 AND u.is_banned = 0 AND s.skill_type = 'offered' AND s.is_approved = 1
     '''
     params = []
 
-    # Optional: exclude current user
+    # Exclude current user
     if session.get('user_id'):
         query += ' AND u.id != ?'
         params.append(session['user_id'])
@@ -295,48 +444,71 @@ def browse():
         query += ' AND s.skill_name LIKE ?'
         params.append(f'%{skill_filter}%')
 
-    query += ' GROUP BY u.id'
+    query += ' GROUP BY u.id ORDER BY u.full_name'
 
     cursor.execute(query, params)
     users = cursor.fetchall()
+
+    # Get skills for each user
+    users_with_skills = []
+    for user in users:
+        # Get offered skills for this user
+        cursor.execute('''
+            SELECT id, skill_name, description 
+            FROM skills 
+            WHERE user_id = ? AND skill_type = 'offered' AND is_approved = 1
+        ''', (user['id'],))
+        offered_skills = cursor.fetchall()
+        
+        user_dict = dict(user)
+        user_dict['offered_skills'] = [dict(skill) for skill in offered_skills]
+        users_with_skills.append(user_dict)
+
+    # Get current user's offered skills for the swap form
+    cursor.execute('''
+        SELECT id, skill_name 
+        FROM skills 
+        WHERE user_id = ? AND skill_type = 'offered' AND is_approved = 1
+    ''', (session['user_id'],))
+    current_user_skills = cursor.fetchall()
+
     conn.close()
 
-    print('Users returned to browse:', [dict(u) for u in users])  # ✅ Safe now
-    return render_template('browse.html', users=users, skill_filter=skill_filter)
+    return render_template('browse.html', 
+                         users=users_with_skills, 
+                         skill_filter=skill_filter,
+                         current_user_skills=current_user_skills)
 
-
-# @app.route('/browse')
-# def browse():
-#     print('Users returned to browse:', [dict(u) for u in users])
-
-#     if 'user_id' not in session:
-#         return redirect(url_for('login'))
+@app.route('/api/user/<int:user_id>/skills')
+def get_user_skills(user_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
     
-#     skill_filter = request.args.get('skill', '')
+    conn = get_db()
+    cursor = conn.cursor()
     
-#     conn = get_db()
-#     cursor = conn.cursor()
+    # Get offered skills for the specified user
+    cursor.execute('''
+        SELECT id, skill_name, description 
+        FROM skills 
+        WHERE user_id = ? AND skill_type = 'offered' AND is_approved = 1
+    ''', (user_id,))
+    offered_skills = cursor.fetchall()
     
-#     query = '''
-#         SELECT DISTINCT u.id, u.full_name, u.location, u.profile_photo, 
-#                GROUP_CONCAT(s.skill_name) as skills
-#         FROM users u
-#         JOIN skills s ON u.id = s.user_id
-#         WHERE u.is_public = 1 AND u.is_banned = 0 AND u.id != ? AND s.skill_type = 'offered' AND s.is_approved = 1
-#     '''
-#     params = [session['user_id']]
+    # Get current user's offered skills
+    cursor.execute('''
+        SELECT id, skill_name 
+        FROM skills 
+        WHERE user_id = ? AND skill_type = 'offered' AND is_approved = 1
+    ''', (session['user_id'],))
+    current_user_skills = cursor.fetchall()
     
-#     if skill_filter:
-#         query += ' AND s.skill_name LIKE ?'
-#         params.append(f'%{skill_filter}%')
+    conn.close()
     
-#     query += ' GROUP BY u.id'
-    
-#     cursor.execute(query, params)
-#     users = cursor.fetchall()
-#     conn.close()
-    
-#     return render_template('browse.html', users=users, skill_filter=skill_filter)
+    return jsonify({
+        'offered_skills': [dict(skill) for skill in offered_skills],
+        'current_user_skills': [dict(skill) for skill in current_user_skills]
+    })
 
 @app.route('/admin')
 def admin_dashboard():
@@ -355,6 +527,9 @@ def admin_dashboard():
     
     cursor.execute('SELECT COUNT(*) as pending_swaps FROM swap_requests WHERE status = "pending"')
     pending_swaps = cursor.fetchone()['pending_swaps']
+    
+    cursor.execute('SELECT COUNT(*) as unapproved_skills FROM skills WHERE is_approved = 0')
+    unapproved_skills_count = cursor.fetchone()['unapproved_skills']
     
     # Get recent activity
     cursor.execute('''
@@ -375,14 +550,25 @@ def admin_dashboard():
     ''')
     unapproved_skills = cursor.fetchall()
     
+    # Get all users
+    cursor.execute('''
+        SELECT id, full_name, username, email, location, is_banned, created_at
+        FROM users 
+        WHERE is_admin = 0
+        ORDER BY created_at DESC
+    ''')
+    all_users = cursor.fetchall()
+    
     conn.close()
     
     return render_template('admin.html', 
                          total_users=total_users,
                          total_swaps=total_swaps,
                          pending_swaps=pending_swaps,
+                         unapproved_skills_count=unapproved_skills_count,
                          recent_swaps=recent_swaps,
-                         unapproved_skills=unapproved_skills)
+                         unapproved_skills=unapproved_skills,
+                         all_users=all_users)
 
 # API Routes
 @app.route('/api/skills', methods=['GET', 'POST'])
@@ -418,6 +604,24 @@ def api_skills():
     conn.close()
     
     return jsonify(skills)
+
+@app.route('/api/skills/<int:skill_id>', methods=['DELETE'])
+def api_delete_skill(skill_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('DELETE FROM skills WHERE id = ? AND user_id = ?', (skill_id, session['user_id']))
+    
+    if cursor.rowcount == 0:
+        return jsonify({'error': 'Skill not found'}), 404
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'message': 'Skill deleted successfully'})
 
 @app.route('/api/swap-request', methods=['POST'])
 def api_swap_request():
@@ -489,6 +693,186 @@ def api_swap_request_action(request_id):
     conn.close()
     
     return jsonify({'message': f'Request {action}ed successfully'})
+
+# --- ADMIN API ROUTES ---
+
+@app.route('/api/admin/skills/<int:skill_id>/approve', methods=['PUT'])
+def approve_skill(skill_id):
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE skills SET is_approved = 1 WHERE id = ?', (skill_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'Skill approved successfully'})
+
+@app.route('/api/admin/skills/<int:skill_id>/reject', methods=['DELETE'])
+def reject_skill(skill_id):
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM skills WHERE id = ?', (skill_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'Skill rejected and deleted successfully'})
+
+@app.route('/api/admin/users', methods=['GET'])
+def get_all_users():
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, full_name, username, email, location, is_banned, created_at
+        FROM users 
+        WHERE is_admin = 0
+        ORDER BY created_at DESC
+    ''')
+    users = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(users)
+
+@app.route('/api/admin/users/<int:user_id>/ban', methods=['PUT'])
+def ban_user(user_id):
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET is_banned = 1 WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'User banned successfully'})
+
+@app.route('/api/admin/users/<int:user_id>/unban', methods=['PUT'])
+def unban_user(user_id):
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET is_banned = 0 WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'User unbanned successfully'})
+
+@app.route('/api/admin/users/<int:user_id>/delete', methods=['DELETE'])
+def delete_user(user_id):
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Delete related records first
+    cursor.execute('DELETE FROM swap_requests WHERE requester_id = ? OR provider_id = ?', (user_id, user_id))
+    cursor.execute('DELETE FROM ratings WHERE rater_id = ? OR rated_id = ?', (user_id, user_id))
+    cursor.execute('DELETE FROM skills WHERE user_id = ?', (user_id,))
+    cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'User deleted successfully'})
+
+@app.route('/api/admin/messages', methods=['GET', 'POST'])
+def admin_messages():
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    if request.method == 'POST':
+        data = request.get_json()
+        title = data.get('title')
+        message = data.get('message')
+
+        if not title or not message:
+            return jsonify({'error': 'Title and message are required'}), 400
+
+        cursor.execute('INSERT INTO admin_messages (title, message) VALUES (?, ?)', (title, message))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'System message sent successfully'})
+    
+    # GET request
+    cursor.execute('SELECT * FROM admin_messages ORDER BY created_at DESC')
+    messages = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(messages)
+
+@app.route('/api/admin/export')
+def export_data():
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow(['User ID', 'Full Name', 'Username', 'Email', 'Location', 'Is Banned', 'Created At'])
+    
+    # Write data
+    cursor.execute('SELECT id, full_name, username, email, location, is_banned, created_at FROM users WHERE is_admin = 0')
+    for row in cursor.fetchall():
+        writer.writerow(row)
+    
+    output.seek(0)
+    conn.close()
+    
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=skillswap_export.csv'}
+    )
+
+@app.route('/api/admin/stats')
+def admin_stats():
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Get comprehensive stats
+    cursor.execute('SELECT COUNT(*) as total_users FROM users WHERE is_admin = 0')
+    total_users = cursor.fetchone()['total_users']
+    
+    cursor.execute('SELECT COUNT(*) as total_swaps FROM swap_requests')
+    total_swaps = cursor.fetchone()['total_swaps']
+    
+    cursor.execute('SELECT COUNT(*) as pending_swaps FROM swap_requests WHERE status = "pending"')
+    pending_swaps = cursor.fetchone()['pending_swaps']
+    
+    cursor.execute('SELECT COUNT(*) as unapproved_skills FROM skills WHERE is_approved = 0')
+    unapproved_skills = cursor.fetchone()['unapproved_skills']
+    
+    cursor.execute('SELECT COUNT(*) as banned_users FROM users WHERE is_banned = 1')
+    banned_users = cursor.fetchone()['banned_users']
+    
+    conn.close()
+    
+    return jsonify({
+        'total_users': total_users,
+        'total_swaps': total_swaps,
+        'pending_swaps': pending_swaps,
+        'unapproved_skills': unapproved_skills,
+        'banned_users': banned_users
+    })
+
+# File serving route for uploaded images
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 if __name__ == '__main__':
     if not os.path.exists('static/uploads'):
